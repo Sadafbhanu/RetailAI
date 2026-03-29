@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - Retail AI</title>
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    />
+    <!-- Adjust if your path is different -->
+ <link rel="stylesheet" href="../style.css" />
+</head>
+<body class="auth-body">
+    <div class="auth-page-shell">
+        <div class="auth-card-2col shadow-lg">
+            <!-- Left image side (grocery retail) -->
+            <div class="auth-visual">
+                <div class="auth-visual-header">
+                    <span class="auth-logo-text">RetailAI</span>
+                    <a href="/" class="auth-back-link">Back to website →</a>
+                </div>
+                <div class="auth-visual-image">
+                    <!-- Grocery retail image -->
+                    <img
+                        src="https://images.pexels.com/photos/5632371/pexels-photo-5632371.jpeg?auto=compress&cs=tinysrgb&w=1200"
+                        alt="Grocery store shelves with analytics overlay"
+                    />
+                </div>
+                <div class="auth-visual-caption">
+                    <h3>Optimizing every aisle in your store.</h3>
+                    <p>Monitor grocery sales, shrinkage, and inventory in real time.</p>
+                </div>
+            </div>
+
+            <!-- Right form side -->
+            <div class="auth-form-side">
+                <div class="auth-form-inner">
+                    <div class="auth-heading-wrapper text-center">
+                        <h1 class="auth-main-heading">Welcome back</h1>
+                        <p class="auth-subheading">
+                            Sign in to access your Retail AI dashboard.
+                        </p>
+                    </div>
+
+                    <form id="login-form" class="mt-4">
+                        <div class="mb-3">
+                            <label for="login-email" class="form-label">Email address</label>
+                            <input
+                                type="email"
+                                class="form-control auth-input"
+                                id="login-email"
+                                placeholder="you@example.com"
+                                required
+                            />
+                        </div>
+
+                        <div class="mb-2">
+                            <label for="login-password" class="form-label">Password</label>
+                            <div class="position-relative">
+                                <input
+                                    type="password"
+                                    class="form-control auth-input"
+                                    id="login-password"
+                                    placeholder="Enter your password"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="form-check">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    id="remember-me"
+                                />
+                                <label class="form-check-label" for="remember-me">
+                                    Remember me
+                                </label>
+                            </div>
+                            <a href="#" class="auth-link-small">Forgot password?</a>
+                        </div>
+
+                        <div id="login-error" class="form-error mb-3"></div>
+
+                        <button type="submit" class="btn w-100 auth-primary-btn">
+                            Sign in
+                        </button>
+                    </form>
+
+                    <div class="auth-bottom-text text-center mt-4">
+                        <span>New to Retail AI?</span>
+                        <a href="/pages/signup.html" class="auth-link">Create an account</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/auth.js"></script>
+</body>
+</html>
