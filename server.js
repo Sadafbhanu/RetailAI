@@ -1,4 +1,5 @@
 require('dotenv').config();
+const path = require('path');
 const express = require('express');
 const connectDB = require('./db.js');
 const multer = require('multer');
@@ -8,14 +9,16 @@ const insightsRoutes = require('./routes/insightsRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes.js');
 
 
+
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 // Middleware to parse JSON bodies
 app.use(express.json());
 const cookieParser = require('cookie-parser');
 app.use(cookieParser());
 // Serve static files from the 'public' directory
 app.use(express.static('public'));
+
 
 // Multer setup for file uploads
 const upload = multer({ dest: 'uploads/' });
@@ -28,7 +31,8 @@ app.use(cors());
 app.use('/api/products', productRoutes);
 app.use('/api/users', authRoutes);
 app.use('/api/insights', insightsRoutes);
-app.use('/api/dashboard',dashboardRoutes);
+
+app.use('/api/dashboard', dashboardRoutes);
 
 const startServer = async () => {
     try {

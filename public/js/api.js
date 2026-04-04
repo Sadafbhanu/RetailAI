@@ -1,12 +1,12 @@
-// A simple API layer
+const API_URL = 'http://localhost:8080/api'; 
 
-const API_URL = '/api';
-
-// Function to get the JWT token from localStorage
+// Get token
 const getToken = () => localStorage.getItem('token');
 
+// Common fetch function
 const apiFetch = async (endpoint, options = {}) => {
     const token = getToken();
+
     const headers = {
         'Content-Type': 'application/json',
         ...options.headers,
@@ -16,40 +16,49 @@ const apiFetch = async (endpoint, options = {}) => {
         headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
+    const response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers
+    });
 
+    // Handle errors
     if (!response.ok) {
-         let errorData;
-        const responseClone = response.clone(); // Clone the response
+        let errorData;
         try {
-            errorData = await response.json(); // Try reading the original
-        } catch (e) {
-            // If response is not JSON, try to get text or provide a generic message
-            errorData = { message: await responseClone.text() || `Server error: ${response.statusText}` }; // Read the clone as a fallback
+            errorData = await response.json();
+        } catch {
+            errorData = { message: "Server error" };
         }
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        throw new Error(errorData.message || "Request failed");
     }
 
     return response.json();
 };
 
+// API methods
 const api = {
+
+    // 📦 Products
     getProducts: () => apiFetch('/products'),
     getAlerts: () => apiFetch('/products/alerts'),
-    
     getInsights: () => apiFetch('/insights'),
+
     sellProduct: (id, quantity = 1) =>
         apiFetch(`/products/${id}/sell`, {
             method: 'POST',
             body: JSON.stringify({ quantity }),
         }),
-    login: (email, password) => apiFetch('/users/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-    }),
-    signup: (name, email, password) => apiFetch('/users/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
-    }),
+
+    // 🔐 AUTH (✅ FIXED HERE)
+    login: (email, password) =>
+        apiFetch('/users/login', {   // ✅ FIXED
+            method: 'POST',
+            body: JSON.stringify({ email, password }),
+        }),
+
+    signup: (name, email, password) =>
+        apiFetch('/users/signup', {  // ✅ FIXED
+            method: 'POST',
+            body: JSON.stringify({ name, email, password }),
+        }),
 };

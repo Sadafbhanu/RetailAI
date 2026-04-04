@@ -4,9 +4,10 @@ const Transaction = require('../models/transactionModel');
 const csv = require('csv-parser');
 const fs = require('fs');
 const path = require('path');
+const { getExpiryStatus } = require('../utils/expiry');
 
 /* ==========================================
-   1️⃣ Add Product (Ledger Entry)
+   1️⃣ Add Product
 ========================================== */
 const addProduct = asyncHandler(async (req, res) => {
     const product = new Product({
@@ -19,9 +20,8 @@ const addProduct = asyncHandler(async (req, res) => {
 });
 
 /* ==========================================
-   2️⃣ Get All Products (User Scoped)
+   2️⃣ Get All Products
 ========================================== */
-const { getExpiryStatus } = require('../utils/expiry');
 const getAllProducts = asyncHandler(async (req, res) => {
     const products = await Product.find({
         ownerID: req.user._id,
@@ -39,9 +39,8 @@ const getAllProducts = asyncHandler(async (req, res) => {
 });
 
 /* ==========================================
-   3️⃣ Sentinel Alerts (Expiry + Low Stock)
+   3️⃣ Alerts (Low stock + Expiry)
 ========================================== */
-
 const getAlerts = asyncHandler(async (req, res) => {
     const products = await Product.find({
         ownerID: req.user._id,
@@ -72,8 +71,9 @@ const getAlerts = asyncHandler(async (req, res) => {
 
     res.json(alerts);
 });
+
 /* ==========================================
-   4️⃣ Quick Sell Product (Flow + Transaction)
+   4️⃣ Sell Product
 ========================================== */
 const quickSellProduct = asyncHandler(async (req, res) => {
     const { quantity } = req.body;
@@ -93,9 +93,10 @@ const quickSellProduct = asyncHandler(async (req, res) => {
         throw new Error('Not enough stock');
     }
 
-    product.quantity -= quantity;
+    product.quantity -= Number(quantity);
     await product.save();
 
+    // ✅ Create transaction
     await Transaction.create({
         product: product._id,
         ownerID: req.user._id,
@@ -111,7 +112,7 @@ const quickSellProduct = asyncHandler(async (req, res) => {
 });
 
 /* ==========================================
-   5️⃣ Quick Restock Product
+   5️⃣ Restock Product
 ========================================== */
 const quickRestockProduct = asyncHandler(async (req, res) => {
     const { quantity } = req.body;
@@ -129,6 +130,7 @@ const quickRestockProduct = asyncHandler(async (req, res) => {
     product.quantity += Number(quantity);
     await product.save();
 
+    // ✅ Create transaction
     await Transaction.create({
         product: product._id,
         ownerID: req.user._id,
@@ -144,7 +146,7 @@ const quickRestockProduct = asyncHandler(async (req, res) => {
 });
 
 /* ==========================================
-   6️⃣ Bulk Upload Products (CSV)
+   6️⃣ Upload CSV
 ========================================== */
 const uploadProducts = asyncHandler(async (req, res) => {
     if (!req.file) {
@@ -184,6 +186,41 @@ const uploadProducts = asyncHandler(async (req, res) => {
         });
 });
 
+/* ==========================================
+   7️⃣ Delete Product
+========================================== */
+const deleteProduct = asyncHandler(async (req, res) => {
+    const product = await Product.findOne({
+        _id: req.params.id,
+        ownerID: req.user._id
+    });
+
+    if (!product) {
+        res.status(404);
+        throw new Error("Product not found");
+    }
+
+    await product.deleteOne();
+
+    res.json({ message: "Product deleted successfully" });
+});
+
+/* ==========================================
+   8️⃣ Get Transactions
+========================================== */
+const getTransactions = asyncHandler(async (req, res) => {
+    const transactions = await Transaction.find({
+        ownerID: req.user._id
+    })
+    .populate('product', 'name')   // get product name
+    .sort({ createdAt: -1 });
+
+    res.json(transactions);
+});
+
+/* ==========================================
+   EXPORTS
+========================================== */
 module.exports = {
     addProduct,
     getAllProducts,
@@ -191,4 +228,6 @@ module.exports = {
     quickSellProduct,
     quickRestockProduct,
     uploadProducts,
+    deleteProduct,
+    getTransactions   // ✅ IMPORTANT
 };

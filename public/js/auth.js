@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.setItem('token', token);
                 localStorage.setItem('userName', name);
 
-                window.location.href = '/pages/index.html';
+                window.location.href = '/index.html';
 
             } catch (error) {
                 loginError.textContent = error.message;

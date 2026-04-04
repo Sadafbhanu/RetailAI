@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
-const transactionSchema = new mongoose.Schema({
+const transactionSchema = new mongoose.Schema(
+{
     product: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Product',
@@ -19,11 +20,10 @@ const transactionSchema = new mongoose.Schema({
     quantity: {
         type: Number,
         required: true
-    },
-    timestamp: {
-        type: Date,
-        default: Date.now
     }
-}, { timestamps: true });
+},
+{
+    timestamps: true   // ✅ creates createdAt & updatedAt automatically
+});
 
 module.exports = mongoose.model('Transaction', transactionSchema);
