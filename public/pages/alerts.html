@@ -24,6 +24,28 @@ h2 {
 .action-btn {
     margin-right: 6px;
 }
+
+.modal-bg {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 2000;
+}
+.modal-panel {
+    background: white;
+    padding: 20px;
+    width: 360px;
+    margin: 100px auto;
+    border-radius: 10px;
+}
+.table-note {
+    font-size: 0.88rem;
+    color: #64748b;
+}
 </style>
 </head>
 
@@ -47,6 +69,25 @@ h2 {
             </tr>
         </thead>
         <tbody id="lowStockTable"></tbody>
+    </table>
+
+    <!-- LEAST SOLD (AI-suggested discount) -->
+    <h4 class="mt-4">Least Sold Items</h4>
+    <p class="table-note mb-2">
+        Estimated discount price uses a demand + shelf-life model (replaceable with a trained ML model).
+        Sales counted over the last 30 days.
+    </p>
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Product Name</th>
+                <th>Quantity</th>
+                <th>Price (₹)</th>
+                <th>Est. Discount Price (₹)</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="leastSoldTable"></tbody>
     </table>
 
     <!-- TOTAL LOSS CARD -->
@@ -73,8 +114,8 @@ h2 {
 </div>
 
 <!-- Restock modal (used for low stock + expired) -->
-<div id="restockModal" class="modal-bg" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">
-    <div style="background:white; padding:20px; width:340px; margin:100px auto; border-radius:10px;">
+<div id="restockModal" class="modal-bg">
+    <div class="modal-panel">
         <h5 id="restockTitle">Restock Product</h5>
         <input type="number" id="restockQty" class="form-control mb-2" placeholder="Quantity">
         <input type="number" id="restockPrice" class="form-control mb-2" placeholder="Price">
@@ -82,6 +123,20 @@ h2 {
         <div class="d-flex gap-2">
             <button class="btn btn-success w-100" onclick="confirmRestockFromAlerts()">Confirm</button>
             <button class="btn btn-secondary w-100" onclick="closeRestockModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Price change (clearance) -->
+<div id="priceModal" class="modal-bg">
+    <div class="modal-panel">
+        <h5>Change product price</h5>
+        <p class="small text-muted mb-2" id="priceModalSubtitle"></p>
+        <label class="form-label">New price (₹)</label>
+        <input type="number" step="0.01" id="newPriceInput" class="form-control mb-3" placeholder="Enter price">
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary w-100" onclick="confirmPriceChange()">Save price</button>
+            <button class="btn btn-secondary w-100" onclick="closePriceModal()">Cancel</button>
         </div>
     </div>
 </div>
@@ -97,6 +152,7 @@ if (!localStorage.getItem("token")) {
 let TOKEN = localStorage.getItem("token");
 let selectedProductId = null;
 let restockMode = "add";
+let priceChangeProductId = null;
 
 async function loadAlerts() {
 
@@ -249,8 +305,76 @@ async function deleteProduct(productId) {
     loadAlerts();
 }
 
+async function loadLeastSold() {
+    const tbody = document.getElementById("leastSoldTable");
+    tbody.innerHTML = "";
+
+    try {
+        const res = await fetch("http://localhost:8080/api/products/least-sold", {
+            headers: { Authorization: "Bearer " + TOKEN }
+        });
+        const rows = await res.json();
+
+        if (!rows.length) {
+            tbody.innerHTML = `<tr><td colspan="5">No eligible products (in-stock, non-expired).</td></tr>`;
+            return;
+        }
+
+        rows.forEach((p) => {
+            const name = String(p.name || "").replace(/</g, "&lt;");
+            const est = Number(p.estimatedDiscountPrice).toFixed(2);
+            const cur = Number(p.price || 0).toFixed(2);
+            tbody.innerHTML += `
+                <tr>
+                    <td>${name}</td>
+                    <td>${p.quantity}</td>
+                    <td>₹${cur}</td>
+                    <td>₹${est}</td>
+                    <td>
+                        <button class="btn btn-outline-primary btn-sm" onclick="openPriceModal('${p._id}', ${p.estimatedDiscountPrice}, ${p.price})">Price change</button>
+                    </td>
+                </tr>`;
+        });
+    } catch (e) {
+        console.error(e);
+        tbody.innerHTML = `<tr><td colspan="5">Failed to load least sold items.</td></tr>`;
+    }
+}
+
+function openPriceModal(productId, suggestedPrice, currentPrice) {
+    priceChangeProductId = productId;
+    document.getElementById("newPriceInput").value = Number(suggestedPrice).toFixed(2);
+    document.getElementById("priceModalSubtitle").innerText =
+        `Current: ₹${Number(currentPrice).toFixed(2)} · AI estimate pre-filled; you can edit before saving.`;
+    document.getElementById("priceModal").style.display = "block";
+}
+
+function closePriceModal() {
+    document.getElementById("priceModal").style.display = "none";
+    priceChangeProductId = null;
+}
+
+async function confirmPriceChange() {
+    const price = parseFloat(document.getElementById("newPriceInput").value);
+    if (!priceChangeProductId) return;
+    if (!price || price <= 0) return alert("Enter a valid price");
+
+    await fetch(`http://localhost:8080/api/products/${priceChangeProductId}/price`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + TOKEN
+        },
+        body: JSON.stringify({ price })
+    });
+
+    closePriceModal();
+    loadLeastSold();
+}
+
 loadSidebar("alerts");
 loadAlerts();
+loadLeastSold();
 
 </script>
 

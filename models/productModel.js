@@ -8,6 +8,7 @@ const productSchema = new mongoose.Schema({
     purchaseDate: { type: Date, default: Date.now },
     expiryDate: Date,
     price: Number,
+    costPrice: Number,
     minThreshold: { type: Number, default: 5 }, 
     category: {
         type: String,

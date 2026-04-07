@@ -103,7 +103,7 @@ small {
     <div class="row mt-4">
 
         <!-- Total Value -->
-        <div class="col-md-4">
+        <div class="col-md-6">
             <div class="card-box blue">
                 <div class="card-title">Total Inventory Value</div>
                 <div class="card-value" id="totalValue">0</div>
@@ -111,17 +111,8 @@ small {
             </div>
         </div>
 
-        <!-- Alerts -->
-        <div class="col-md-4">
-            <div class="card-box orange clickable-card" onclick="window.location.href='/pages/alerts.html'">
-                <div class="card-title">Critical Alerts</div>
-                <div class="card-value" id="alerts">0</div>
-                <small id="alertBreakdown"></small>
-            </div>
-        </div>
-
         <!-- Products -->
-        <div class="col-md-4">
+        <div class="col-md-6">
             <div class="card-box green">
                 <div class="card-title">Total Products</div>
                 <div class="card-value" id="products">0</div>
@@ -129,6 +120,21 @@ small {
             </div>
         </div>
 
+    </div>
+
+    <div class="mt-4">
+        <h4>Top Sold Items</h4>
+        <table class="table table-bordered mt-3">
+            <thead>
+                <tr>
+                    <th>Product Name</th>
+                    <th>Quantity Sold</th>
+                    <th>Quantity Left</th>
+                    <th>Profit Made</th>
+                </tr>
+            </thead>
+            <tbody id="topSoldTable"></tbody>
+        </table>
     </div>
 
 </div>
@@ -152,42 +158,79 @@ async function loadDashboard() {
                 "Authorization": "Bearer " + TOKEN
             }
         });
+        let txRes = await fetch("http://localhost:8080/api/products/transactions", {
+            headers: {
+                "Authorization": "Bearer " + TOKEN
+            }
+        });
 
         let data = await res.json();
+        let transactions = await txRes.json();
 
         let totalValue = 0;
-        let lowStockCount = 0;
-        let expiredCount = 0;
-
-        const today = new Date();
-        today.setHours(0,0,0,0);
+        let productMap = {};
+        let salesMap = {};
 
         data.forEach(p => {
             let qty = p.quantity || 0;
             let price = p.price || 0;
 
             totalValue += qty * price;
-
-            if (qty < (p.minThreshold || 0)) {
-                lowStockCount++;
-            }
-
-            if (p.expiryDate) {
-                let expDate = new Date(p.expiryDate);
-                expDate.setHours(0,0,0,0);
-
-                if (expDate < today) {
-                    expiredCount++;
-                }
-            }
+            productMap[p._id] = p;
         });
 
-        document.getElementById("totalValue").innerText = totalValue;
-        document.getElementById("alerts").innerText = lowStockCount + expiredCount;
-        document.getElementById("products").innerText = data.length;
+        const now = new Date();
+        const oneWeekAgo = new Date(now);
+        oneWeekAgo.setDate(now.getDate() - 7);
 
-        document.getElementById("alertBreakdown").innerText =
-            `${lowStockCount} Low Stock, ${expiredCount} Expired`;
+        transactions.forEach(t => {
+            if (t.type !== "Sale" || !t.product || !t.product._id) return;
+            if (!t.createdAt) return;
+            const txDate = new Date(t.createdAt);
+            if (txDate < oneWeekAgo) return;
+
+            const id = t.product._id;
+            if (!salesMap[id]) {
+                salesMap[id] = {
+                    name: t.product.name || "Unknown Product",
+                    quantitySold: 0,
+                    profit: 0
+                };
+            }
+            salesMap[id].quantitySold += Number(t.quantity || 0);
+
+            const price = Number(t.product.price || 0);
+            const cost = Number(t.product.costPrice ?? (price * 0.7));
+            salesMap[id].profit += (price - cost) * Number(t.quantity || 0);
+        });
+
+        const topSold = Object.entries(salesMap)
+            .map(([id, stats]) => ({
+                ...stats,
+                quantityLeft: Number(productMap[id]?.quantity || 0)
+            }))
+            .sort((a, b) => b.quantitySold - a.quantitySold)
+            .slice(0, 10);
+
+        const topSoldTable = document.getElementById("topSoldTable");
+        topSoldTable.innerHTML = "";
+        if (topSold.length === 0) {
+            topSoldTable.innerHTML = `<tr><td colspan="4">No sales data available for last 7 days.</td></tr>`;
+        } else {
+            topSold.forEach(item => {
+                topSoldTable.innerHTML += `
+                    <tr>
+                        <td>${item.name}</td>
+                        <td>${item.quantitySold}</td>
+                        <td>${item.quantityLeft}</td>
+                        <td>₹${item.profit.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        document.getElementById("totalValue").innerText = totalValue;
+        document.getElementById("products").innerText = data.length;
 
     } catch (err) {
         console.log(err);

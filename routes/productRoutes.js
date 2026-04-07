@@ -10,7 +10,9 @@ const {
     uploadProducts,
     updateMinThreshold,
     deleteProduct,
-    getTransactions   // ✅ ADD THIS
+    getTransactions,
+    getLeastSoldProducts,
+    updateProductPrice,
 } = require('../controllers/productController');
 
 const { protect } = require('../middleware/authMiddleware');
@@ -28,6 +30,9 @@ router.get('/', protect, getAllProducts);
 
 // Alerts (low stock + expiry)
 router.get('/alerts', protect, getAlerts);
+
+// Least sold items (for pricing / clearance)
+router.get('/least-sold', protect, getLeastSoldProducts);
 
 // Delete product
 router.delete('/:id', protect, deleteProduct);
@@ -53,6 +58,9 @@ router.post('/:id/restock', protect, quickRestockProduct);
 
 // Edit product min threshold
 router.put('/:id/min-threshold', protect, updateMinThreshold);
+
+// Update sale price (from clearance / discount flow)
+router.put('/:id/price', protect, updateProductPrice);
 
 
 /* ==========================================

@@ -5,17 +5,24 @@
     const fs = require('fs');
     const path = require('path');
     const { getExpiryStatus } = require('../utils/expiry');
+    const { estimateDiscountedPrice } = require('../utils/discountEstimator');
 
     /* ==========================================
     1️⃣ Add Product
     ========================================== */
 const addProduct = asyncHandler(async (req, res) => {
-    let { name, quantity, price, costPrice, minThreshold, expiryDate } = req.body;
+    let { name, quantity, price, costPrice, minThreshold, expiryDate, category } = req.body;
+
+    if (!name || !quantity || !price || !expiryDate) {
+        res.status(400);
+        throw new Error('name, quantity, price and expiryDate are required');
+    }
 
     // ✅ CHECK if product already exists
     let product = await Product.findOne({
         name,
-        ownerID: req.user._id
+        ownerID: req.user._id,
+        expiryDate: new Date(expiryDate)
     });
 
     if (product) {
@@ -28,6 +35,7 @@ const addProduct = asyncHandler(async (req, res) => {
         }
 
         if (expiryDate) product.expiryDate = expiryDate;
+        if (category) product.category = category;
 
         await product.save();
 
@@ -45,6 +53,7 @@ const addProduct = asyncHandler(async (req, res) => {
         costPrice: costPrice || price * 0.7,
         minThreshold,
         expiryDate,
+        category: category || 'General',
         sales: [],
         ownerID: req.user._id,
     });
@@ -295,10 +304,12 @@ const uploadProducts = asyncHandler(async (req, res) => {
             fs.unlinkSync(filePath);
 
             for (let item of results) {
+                if (!item.name || !item.quantity || !item.price || !item.expiryDate) continue;
 
                 let existing = await Product.findOne({
                     name: item.name,
-                    ownerID: req.user._id
+                    ownerID: req.user._id,
+                    expiryDate: new Date(item.expiryDate),
                 });
 
                 if (existing) {
@@ -314,6 +325,7 @@ const uploadProducts = asyncHandler(async (req, res) => {
                             : Number(item.price) * 0.7,
                         minThreshold: Number(item.minThreshold) || 5,
                         expiryDate: item.expiryDate,
+                        category: item.category || 'General',
                         sales: [],
                         ownerID: req.user._id
                     });
@@ -387,6 +399,111 @@ const uploadProducts = asyncHandler(async (req, res) => {
         res.json(transactions);
     });
 
+    const LEAST_SOLD_WINDOW_DAYS = 30;
+
+    const getLeastSoldProducts = asyncHandler(async (req, res) => {
+        const from = new Date();
+        from.setDate(from.getDate() - LEAST_SOLD_WINDOW_DAYS);
+
+        const salesAgg = await Transaction.aggregate([
+            {
+                $match: {
+                    ownerID: req.user._id,
+                    type: 'Sale',
+                    createdAt: { $gte: from },
+                },
+            },
+            {
+                $group: {
+                    _id: '$product',
+                    soldQty: { $sum: '$quantity' },
+                },
+            },
+        ]);
+
+        const soldByProduct = new Map(
+            salesAgg.map((row) => [row._id.toString(), row.soldQty])
+        );
+
+        const products = await Product.find({ ownerID: req.user._id });
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const eligible = products.filter((p) => {
+            if (!p.quantity || p.quantity <= 0) return false;
+            if (!p.expiryDate) return true;
+            const exp = new Date(p.expiryDate);
+            exp.setHours(0, 0, 0, 0);
+            return exp >= today;
+        });
+
+        const scored = eligible.map((p) => {
+            const idStr = p._id.toString();
+            const soldQtyInWindow = soldByProduct.get(idStr) || 0;
+            const cost =
+                typeof p.costPrice === 'number' && p.costPrice > 0
+                    ? p.costPrice
+                    : (Number(p.price) || 0) * 0.7;
+
+            const estimatedDiscountPrice = estimateDiscountedPrice({
+                price: p.price,
+                costPrice: cost,
+                quantity: p.quantity,
+                minThreshold: p.minThreshold,
+                expiryDate: p.expiryDate,
+                soldQtyInWindow,
+                windowDays: LEAST_SOLD_WINDOW_DAYS,
+            });
+
+            return {
+                _id: p._id,
+                name: p.name,
+                quantity: p.quantity,
+                price: p.price,
+                estimatedDiscountPrice,
+                soldQtyInWindow,
+            };
+        });
+
+        scored.sort((a, b) => {
+            if (a.soldQtyInWindow !== b.soldQtyInWindow) {
+                return a.soldQtyInWindow - b.soldQtyInWindow;
+            }
+            return (b.quantity || 0) - (a.quantity || 0);
+        });
+
+        const top = scored.slice(0, 10);
+        res.json(top);
+    });
+
+    const updateProductPrice = asyncHandler(async (req, res) => {
+        const { price } = req.body;
+        const n = Number(price);
+        if (!n || n <= 0) {
+            res.status(400);
+            throw new Error('Invalid price');
+        }
+
+        const product = await Product.findOne({
+            _id: req.params.id,
+            ownerID: req.user._id,
+        });
+
+        if (!product) {
+            res.status(404);
+            throw new Error('Product not found');
+        }
+
+        product.price = n;
+        product.costPrice = n * 0.7;
+        await product.save();
+
+        res.json({
+            message: 'Price updated successfully',
+            product,
+        });
+    });
+
 
     /* ==========================================
     EXPORTS
@@ -400,5 +517,7 @@ const uploadProducts = asyncHandler(async (req, res) => {
         uploadProducts,
         updateMinThreshold,
         deleteProduct,
-        getTransactions
+        getTransactions,
+        getLeastSoldProducts,
+        updateProductPrice,
     };

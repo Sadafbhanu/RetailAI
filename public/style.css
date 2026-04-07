@@ -219,7 +219,7 @@
     position: fixed;
     left: 0;
     top: 0;
-    width: 240px;
+    width: 200px;
     height: 100vh;
     background: #1e293b;
     color: #fff;
@@ -254,8 +254,8 @@
 }
 
 .main-content {
-    margin-left: 240px;
-    width: calc(100% - 240px);
+    margin-left: 200px;
+    width: calc(100% - 200px);
     min-height: 100vh;
     padding: 20px;
     overflow-x: auto;
