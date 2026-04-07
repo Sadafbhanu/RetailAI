@@ -2,44 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RetailAI Dashboard</title>
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
 
 <style>
 body {
     background: #f5f6fa;
     font-family: Arial;
-}
-
-/* Sidebar */
-.sidebar {
-    width: 230px;
-    height: 100vh;
-    background: #1e1e2f;
-    color: white;
-    position: fixed;
-    padding: 20px;
-}
-
-.sidebar a {
-    display: block;
-    margin: 12px 0;
-    color: #cbd5e1;
-    text-decoration: none;
-    padding: 10px;
-    border-radius: 8px;
-}
-
-.sidebar a.active {
-    background: #4e73df;
-    color: white;
-}
-
-/* Main */
-.main {
-    margin-left: 250px;
-    padding: 30px;
 }
 
 /* Cards */
@@ -96,22 +68,20 @@ small {
     border-radius: 8px;
     padding: 10px;
 }
+
+.clickable-card {
+    cursor: pointer;
+}
 </style>
 </head>
 
 <body>
 
-<!-- Sidebar -->
-<div class="sidebar">
-    <h2>RetailAI</h2>
-    <a href="#" class="active">Dashboard</a>
-    <a href="/pages/inventory.html">Inventory Ledger</a>
-    <a href="/pages/transactions.html">Transactions</a>
-    <a href="/pages/insights.html">Insights</a>
-</div>
+<div class="container">
+<div id="sidebar-placeholder"></div>
 
 <!-- Main -->
-<div class="main">
+<div class="main-content">
 
     <div class="topbar">
         <h2>Dashboard</h2>
@@ -143,7 +113,7 @@ small {
 
         <!-- Alerts -->
         <div class="col-md-4">
-            <div class="card-box orange" onclick="window.location.href='/pages/alerts.html'" style="cursor:pointer;">
+            <div class="card-box orange clickable-card" onclick="window.location.href='/pages/alerts.html'">
                 <div class="card-title">Critical Alerts</div>
                 <div class="card-value" id="alerts">0</div>
                 <small id="alertBreakdown"></small>
@@ -162,7 +132,9 @@ small {
     </div>
 
 </div>
+</div>
 
+<script src="/js/sidebar.js"></script>
 <script>
 
 // 🔐 Protect page
@@ -243,6 +215,7 @@ document.addEventListener("click", function(e) {
 });
 
 // Start
+loadSidebar("dashboard");
 loadDashboard();
 
 </script>

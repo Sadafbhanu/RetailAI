@@ -208,3 +208,55 @@
         padding-top: 24px;
     }
 }
+
+/* ---------- Shared app layout (fixed sidebar) ---------- */
+
+.container {
+    display: flex;
+}
+
+.sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 240px;
+    height: 100vh;
+    background: #1e293b;
+    color: #fff;
+    padding: 20px 16px;
+    overflow-y: auto;
+    z-index: 1000;
+}
+
+.sidebar-header h2 {
+    font-size: 1.35rem;
+    margin-bottom: 20px;
+}
+
+.sidebar-nav a {
+    display: block;
+    margin: 8px 0;
+    color: #cbd5e1;
+    text-decoration: none;
+    padding: 10px 12px;
+    border-radius: 8px;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.sidebar-nav a:hover {
+    background: #334155;
+    color: #fff;
+}
+
+.sidebar-nav a.active {
+    background: #4e73df;
+    color: #fff;
+}
+
+.main-content {
+    margin-left: 240px;
+    width: calc(100% - 240px);
+    min-height: 100vh;
+    padding: 20px;
+    overflow-x: auto;
+}

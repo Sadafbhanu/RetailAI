@@ -2,17 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Critical Alerts</title>
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
 
 <style>
 body {
     background: #f5f6fa;
     font-family: Arial;
-}
-.container {
-    margin-top: 40px;
 }
 h2 {
     margin-bottom: 20px;
@@ -27,8 +26,8 @@ h2 {
 <body>
 
 <div class="container">
-
-    <a href="/index.html" class="btn btn-secondary mb-3">⬅ Back to Dashboard</a>
+    <div id="sidebar-placeholder"></div>
+    <div class="main-content">
 
     <h2><b>Critical Alerts</b></h2>
 
@@ -65,7 +64,9 @@ h2 {
     </table>
 
 </div>
+</div>
 
+<script src="/js/sidebar.js"></script>
 <script>
 
 // 🔐 Auth check
@@ -140,6 +141,7 @@ async function loadAlerts() {
         "₹" + totalLoss.toFixed(2);
 }
 
+loadSidebar("alerts");
 loadAlerts();
 
 </script>
