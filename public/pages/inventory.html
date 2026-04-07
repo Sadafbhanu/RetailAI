@@ -9,36 +9,43 @@
 <style>
 body { background: #f5f6fa; font-family: Arial; }
 .container { margin-top: 40px; }
-.table-danger { background-color: #ffcccc !important; }
+
+.expiry-dot {
+    height: 10px;
+    width: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-left: 6px;
+}
+.expiring { background-color: orange; }
+.expired { background-color: red; }
+
+/* Modal */
+.modal-bg {
+    display:none;
+    position:fixed;
+    top:0; left:0;
+    width:100%; height:100%;
+    background:rgba(0,0,0,0.5);
+}
+.modal-box {
+    background:white;
+    padding:20px;
+    width:320px;
+    margin:100px auto;
+    border-radius:10px;
+}
 </style>
 </head>
 
 <body>
 
-<div class="container">
+    <div class="container">
 
-<h2>📦 Inventory</h2>
+<a href="/index.html" class="btn btn-secondary mb-3">⬅ Back</a>
 
-<div class="mb-3">
-<a href="/index.html" class="btn btn-secondary me-2">⬅ Back</a>
-<button class="btn btn-success me-2" onclick="toggleForm()">➕ Add Item</button>
+<h1 class="mb-4">📦 Inventory</h1>
 
-<input type="file" id="fileInput" accept=".csv" hidden onchange="handleFileUpload(event)">
-<button class="btn btn-primary me-2" onclick="fileInput.click()">📂 Upload File</button>
-
-<button class="btn btn-dark" onclick="startVoiceInput()">🎤 Speak</button>
-</div>
-
-<div id="product-form" class="card p-4 mb-4" style="display:none;">
-<input id="name" class="form-control mb-2" placeholder="Product Name">
-<input id="quantity" class="form-control mb-2" placeholder="Quantity">
-<input id="price" class="form-control mb-2" placeholder="Price">
-<input id="minThreshold" class="form-control mb-2" placeholder="Min Stock">
-<input id="expiryDate" type="date" class="form-control mb-2">
-
-<button class="btn btn-primary" onclick="addProduct()">Add Product</button>
-<p id="msg" class="text-danger mt-2"></p>
-</div>
 
 <table class="table table-bordered">
 <thead>
@@ -47,7 +54,6 @@ body { background: #f5f6fa; font-family: Arial; }
 <th>Qty</th>
 <th>Price</th>
 <th>Total</th>
-<th>Min Stock</th>
 <th>Expiry</th>
 <th>Actions</th>
 </tr>
@@ -57,114 +63,65 @@ body { background: #f5f6fa; font-family: Arial; }
 
 </div>
 
-<script>
+<!-- ✅ SELL MODAL -->
+<div id="sellModal" class="modal-bg">
+    <div class="modal-box">
+        <h5>Sell Product</h5>
+        <input type="number" id="sellQty" class="form-control mb-3" placeholder="Enter quantity">
+        <button class="btn btn-success w-100 mb-2" onclick="confirmSell()">Confirm</button>
+        <button class="btn btn-secondary w-100" onclick="closeSellModal()">Cancel</button>
+    </div>
+</div>
 
-// 🔐 Auth check
-if (!localStorage.getItem("token")) {
-    window.location.href = "/pages/login.html";
-}
+<!-- ✅ RESTOCK MODAL -->
+<div id="restockModal" class="modal-bg">
+    <div class="modal-box">
+        <h5>Restock Product</h5>
+
+        <input type="number" id="restockQty" class="form-control mb-2" placeholder="Quantity">
+        <input type="number" id="restockPrice" class="form-control mb-2" placeholder="Price">
+        <input type="date" id="restockExpiry" class="form-control mb-3">
+
+        <button class="btn btn-success w-100 mb-2" onclick="confirmRestock()">Confirm</button>
+        <button class="btn btn-secondary w-100" onclick="closeRestockModal()">Cancel</button>
+    </div>
+</div>
+
+<script>
 
 let TOKEN = localStorage.getItem("token");
 let products = [];
 
-// Toggle form
-function toggleForm() {
-    let form = document.getElementById("product-form");
-    form.style.display = form.style.display === "none" ? "block" : "none";
-}
+let selectedSellIndex = null;
+let selectedRestockIndex = null;
 
-// Load products
+// Load
 async function loadProducts() {
     let res = await fetch("http://localhost:8080/api/products", {
         headers: { Authorization: "Bearer " + TOKEN }
     });
 
-    let data = await res.json();
-    products = data;
+    products = await res.json();
     render();
 }
 
-// Add product (FIXED IDs)
-async function addProduct() {
-    let name = document.getElementById("name").value;
-    let quantity = parseInt(document.getElementById("quantity").value);
-    let price = parseInt(document.getElementById("price").value);
-    let minThreshold = parseInt(document.getElementById("minThreshold").value);
-    let expiryDate = document.getElementById("expiryDate").value;
-
-    if (!name || isNaN(quantity)) return;
-
-    await fetch("http://localhost:8080/api/products", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + TOKEN
-        },
-        body: JSON.stringify({ name, quantity, price, minThreshold, expiryDate })
-    });
-
-    loadProducts();
+// ---------------- SELL ----------------
+function openSellModal(index) {
+    selectedSellIndex = index;
+    document.getElementById("sellQty").value = "";
+    document.getElementById("sellModal").style.display = "block";
 }
 
-// 🎤 Voice
-async function processVoiceCommand(text) {
-    let numbers = text.match(/\d+/g);
-    let quantity = numbers ? parseInt(numbers[0]) : 1;
-    let price = numbers && numbers[1] ? parseInt(numbers[1]) : 10;
-
-    let name = text.replace(/\d+/g, "").replace("add", "").replace("price", "").trim();
-    if (!name) return;
-
-    await fetch("http://localhost:8080/api/products", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + TOKEN
-        },
-        body: JSON.stringify({
-            name,
-            quantity,
-            price,
-            minThreshold: 5,
-            expiryDate: new Date().toISOString()
-        })
-    });
-
-    loadProducts();
+function closeSellModal() {
+    document.getElementById("sellModal").style.display = "none";
 }
 
-function startVoiceInput() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return alert("Not supported");
+async function confirmSell() {
+    let qty = parseInt(document.getElementById("sellQty").value);
+    let p = products[selectedSellIndex];
 
-    const recognition = new SpeechRecognition();
-    recognition.start();
-
-    recognition.onresult = e => {
-        processVoiceCommand(e.results[0][0].transcript);
-    };
-}
-
-// 📂 CSV Upload
-async function handleFileUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    await fetch("http://localhost:8080/api/products/upload", {
-        method: "POST",
-        headers: { Authorization: "Bearer " + TOKEN },
-        body: formData
-    });
-
-    loadProducts();
-}
-
-// Sell
-async function sellProduct(index) {
-    let p = products[index];
+    if (!qty || qty <= 0) return alert("Invalid quantity");
+    if (qty > p.quantity) return alert("Not enough stock");
 
     await fetch(`http://localhost:8080/api/products/${p._id}/sell`, {
         method: "POST",
@@ -172,15 +129,38 @@ async function sellProduct(index) {
             "Content-Type": "application/json",
             "Authorization": "Bearer " + TOKEN
         },
-        body: JSON.stringify({ quantity: 1 })
+        body: JSON.stringify({ quantity: qty })
     });
 
+    closeSellModal();
     loadProducts();
 }
 
-// Restock
-async function restockProduct(index) {
-    let p = products[index];
+// ---------------- RESTOCK ----------------
+function openRestockModal(index) {
+    selectedRestockIndex = index;
+
+    document.getElementById("restockQty").value = "";
+    document.getElementById("restockPrice").value = "";
+    document.getElementById("restockExpiry").value = "";
+
+    document.getElementById("restockModal").style.display = "block";
+}
+
+function closeRestockModal() {
+    document.getElementById("restockModal").style.display = "none";
+}
+
+async function confirmRestock() {
+    let qty = parseInt(document.getElementById("restockQty").value);
+    let price = parseInt(document.getElementById("restockPrice").value);
+    let expiryDate = document.getElementById("restockExpiry").value;
+
+    let p = products[selectedRestockIndex];
+
+    if (!qty || qty <= 0) return alert("Invalid quantity");
+    if (!price || price <= 0) return alert("Invalid price");
+    if (!expiryDate) return alert("Select expiry date");
 
     await fetch(`http://localhost:8080/api/products/${p._id}/restock`, {
         method: "POST",
@@ -188,68 +168,77 @@ async function restockProduct(index) {
             "Content-Type": "application/json",
             "Authorization": "Bearer " + TOKEN
         },
-        body: JSON.stringify({ quantity: 1 })
+        body: JSON.stringify({
+            quantity: qty,
+            price: price,
+            expiryDate: expiryDate
+        })
     });
 
+    closeRestockModal();
     loadProducts();
 }
 
-// ❌ DELETE (FULLY FIXED)
-async function deleteProduct(index) {
-    let p = products[index];
-
-    console.log("Deleting ID:", p._id);
-
-    if (!confirm("Delete this product?")) return;
-
-    try {
-        let res = await fetch(`http://localhost:8080/api/products/${p._id}`, { 
-            method: "DELETE",
-            headers: {
-                "Authorization": "Bearer " + localStorage.getItem("token")
-            }
-        });
-
-        let data = await res.json();
-
-        if (!res.ok) {
-            console.error("Delete error:", data);
-            alert(data.error || "Delete failed");
-            return;
-        }
-
-        alert("Deleted successfully");
-        loadProducts();
-
-    } catch (err) {
-        console.log("ERROR:", err);
-    }
-}
-// Render
+// ---------------- RENDER ----------------
 function render() {
     let tbody = document.getElementById("table-body");
     tbody.innerHTML = "";
 
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
     products.forEach((p, i) => {
-        let total = (p.quantity || 0) * (p.price || 0);
+        let total = p.quantity * p.price;
         let expiry = p.expiryDate ? p.expiryDate.split("T")[0] : "-";
-        let danger = p.quantity < (p.minThreshold || 0) ? "table-danger" : "";
+
+        let isExpired = false;
+        let dotClass = "";
+
+        if (p.expiryDate) {
+            let expDate = new Date(p.expiryDate);
+            expDate.setHours(0,0,0,0);
+
+            let diffDays = (expDate - today) / (1000*60*60*24);
+
+            if (diffDays < 0) {
+                isExpired = true;
+                dotClass = "expired";
+            } else if (diffDays <= 3) {
+                dotClass = "expiring";
+            }
+        }
+
+        let sellBtn = isExpired ? "" :
+            `<button class="btn btn-warning btn-sm" onclick="openSellModal(${i})">Sell</button>`;
 
         tbody.innerHTML += `
-        <tr class="${danger}">
+        <tr>
             <td>${p.name}</td>
             <td>${p.quantity}</td>
             <td>${p.price}</td>
             <td>₹${total}</td>
-            <td>${p.minThreshold || 0}</td>
-            <td>${expiry}</td>
+            <td>${expiry} ${dotClass ? `<span class="expiry-dot ${dotClass}"></span>` : ""}</td>
             <td>
-                <button class="btn btn-warning btn-sm" onclick="sellProduct(${i})">Sell</button>
-                <button class="btn btn-success btn-sm" onclick="restockProduct(${i})">Restock</button>
+                ${sellBtn}
+                <button class="btn btn-success btn-sm" onclick="openRestockModal(${i})">Restock</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteProduct(${i})">Delete</button>
             </td>
         </tr>`;
     });
+}
+
+// Delete
+async function deleteProduct(index) {
+    let p = products[index];
+
+    if (!confirm("Delete?")) return;
+
+    await fetch(`http://localhost:8080/api/products/${p._id}`, {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + TOKEN }
+    });
+
+    loadProducts();
 }
 
 // Start

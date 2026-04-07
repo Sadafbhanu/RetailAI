@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Insights</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<style>
+body {
+    background: #f5f6fa;
+    font-family: Arial;
+}
+
+.container {
+    margin-top: 40px;
+}
+
+.card {
+    margin-bottom: 15px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <a href="/index.html" class="btn btn-secondary mb-3">⬅ Back</a>
+
+    <h2>📊 AI Insights</h2>
+
+    <div id="insightsContainer"></div>
+
+</div>
+
+<script>
+
+// 🔐 Auth check
+if (!localStorage.getItem("token")) {
+    window.location.href = "/pages/login.html";
+}
+
+const TOKEN = localStorage.getItem("token");
+
+async function loadInsights() {
+    try {
+        const res = await fetch("http://localhost:8080/api/insights", {
+            headers: {
+                "Authorization": "Bearer " + TOKEN
+            }
+        });
+
+        const data = await res.json();
+
+        console.log("Insights:", data); // ✅ DEBUG
+
+        const container = document.getElementById("insightsContainer");
+        container.innerHTML = "";
+
+        if (!data || data.length === 0) {
+            container.innerHTML = "<p>No insights available.</p>";
+            return;
+        }
+
+        data.forEach(i => {
+
+            let color = "secondary";
+
+            if (i.priority === "High") color = "danger";
+            else if (i.priority === "Medium") color = "warning";
+            else if (i.priority === "Low") color = "success";
+
+            container.innerHTML += `
+                <div class="card border-${color}">
+                    <div class="card-body">
+                        <h6><b>${i.type}</b></h6>
+                        <p>${i.message}</p>
+                        <span class="badge bg-${color}">${i.priority}</span>
+                    </div>
+                </div>
+            `;
+        });
+
+    } catch (err) {
+        console.log("ERROR:", err);
+        document.getElementById("insightsContainer").innerHTML =
+            "<p style='color:red;'>Failed to load insights</p>";
+    }
+}
+
+// 🚀 Run
+loadInsights();
+
+</script>
+
+</body>
+</html>

@@ -22,11 +22,6 @@ body {
     padding: 20px;
 }
 
-.sidebar h2 {
-    font-weight: bold;
-    color: white;
-}
-
 .sidebar a {
     display: block;
     margin: 12px 0;
@@ -34,11 +29,6 @@ body {
     text-decoration: none;
     padding: 10px;
     border-radius: 8px;
-}
-
-.sidebar a:hover {
-    background: #2a2a40;
-    color: white;
 }
 
 .sidebar a.active {
@@ -58,6 +48,11 @@ body {
     padding: 20px;
     background: white;
     box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+
+    height: 130px; /* ✅ SAME HEIGHT */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 .blue { border-left: 5px solid #4e73df; }
@@ -74,6 +69,11 @@ body {
     font-weight: bold;
 }
 
+small {
+    font-size: 12px;
+    color: #666;
+}
+
 /* Header */
 .topbar {
     display: flex;
@@ -81,7 +81,7 @@ body {
     align-items: center;
 }
 
-/* 🔥 Profile Dropdown */
+/* Profile Dropdown */
 .profile-wrapper {
     position: relative;
 }
@@ -95,9 +95,6 @@ body {
     border: 1px solid #ddd;
     border-radius: 8px;
     padding: 10px;
-    min-width: 120px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-    z-index: 999;
 }
 </style>
 </head>
@@ -106,12 +103,11 @@ body {
 
 <!-- Sidebar -->
 <div class="sidebar">
-    <h2> RetailAI</h2>
-
-    <a href="#" class="active"> Dashboard</a>
-    <a href="/pages/inventory.html"> Inventory Ledger</a> 
-    <a href="/pages/transactions.html"> Transactions</a>
-    <a href="#"> Insights</a>
+    <h2>RetailAI</h2>
+    <a href="#" class="active">Dashboard</a>
+    <a href="/pages/inventory.html">Inventory Ledger</a>
+    <a href="/pages/transactions.html">Transactions</a>
+    <a href="/pages/insights.html">Insights</a>
 </div>
 
 <!-- Main -->
@@ -120,7 +116,6 @@ body {
     <div class="topbar">
         <h2>Dashboard</h2>
 
-        <!-- ✅ PROFILE DROPDOWN -->
         <div class="profile-wrapper">
             <button onclick="toggleProfileMenu(event)" class="btn btn-light">
                 👤 Profile
@@ -137,24 +132,30 @@ body {
     <!-- Cards -->
     <div class="row mt-4">
 
+        <!-- Total Value -->
         <div class="col-md-4">
             <div class="card-box blue">
                 <div class="card-title">Total Inventory Value</div>
                 <div class="card-value" id="totalValue">0</div>
+                <small>&nbsp;</small>
             </div>
         </div>
 
+        <!-- Alerts -->
         <div class="col-md-4">
-            <div class="card-box orange">
+            <div class="card-box orange" onclick="window.location.href='/pages/alerts.html'" style="cursor:pointer;">
                 <div class="card-title">Critical Alerts</div>
                 <div class="card-value" id="alerts">0</div>
+                <small id="alertBreakdown"></small>
             </div>
         </div>
 
+        <!-- Products -->
         <div class="col-md-4">
             <div class="card-box green">
                 <div class="card-title">Total Products</div>
                 <div class="card-value" id="products">0</div>
+                <small>&nbsp;</small>
             </div>
         </div>
 
@@ -183,7 +184,11 @@ async function loadDashboard() {
         let data = await res.json();
 
         let totalValue = 0;
-        let alerts = 0;
+        let lowStockCount = 0;
+        let expiredCount = 0;
+
+        const today = new Date();
+        today.setHours(0,0,0,0);
 
         data.forEach(p => {
             let qty = p.quantity || 0;
@@ -192,45 +197,52 @@ async function loadDashboard() {
             totalValue += qty * price;
 
             if (qty < (p.minThreshold || 0)) {
-                alerts++;
+                lowStockCount++;
+            }
+
+            if (p.expiryDate) {
+                let expDate = new Date(p.expiryDate);
+                expDate.setHours(0,0,0,0);
+
+                if (expDate < today) {
+                    expiredCount++;
+                }
             }
         });
 
         document.getElementById("totalValue").innerText = totalValue;
-        document.getElementById("alerts").innerText = alerts;
+        document.getElementById("alerts").innerText = lowStockCount + expiredCount;
         document.getElementById("products").innerText = data.length;
+
+        document.getElementById("alertBreakdown").innerText =
+            `${lowStockCount} Low Stock, ${expiredCount} Expired`;
 
     } catch (err) {
         console.log(err);
     }
 }
 
-// ✅ Toggle dropdown
+// Toggle dropdown
 function toggleProfileMenu(e) {
     e.stopPropagation();
-
     let menu = document.getElementById("profileMenu");
-
-    menu.style.display = menu.style.display === "block"
-        ? "none"
-        : "block";
+    menu.style.display = menu.style.display === "block" ? "none" : "block";
 }
 
-// ✅ Logout
+// Logout
 function logout() {
     localStorage.removeItem("token");
-    alert("Logged out successfully");
     window.location.href = "/pages/login.html";
 }
 
-// ✅ Close when clicking outside
+// Close dropdown
 document.addEventListener("click", function(e) {
     if (!e.target.closest(".profile-wrapper")) {
         document.getElementById("profileMenu").style.display = "none";
     }
 });
 
-// 🚀 Start
+// Start
 loadDashboard();
 
 </script>

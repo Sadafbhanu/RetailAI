@@ -9,6 +9,11 @@
 <style>
 body { background: #f5f6fa; }
 .container { margin-top: 40px; }
+
+.card {
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
 </style>
 </head>
 
@@ -16,9 +21,15 @@ body { background: #f5f6fa; }
 
 <div class="container">
 
-<h1 class="mb-4">Transaction History</h1>
+<h1 class="mb-4">📜 Transaction History</h1>
 
-<a href="/index.html" class="btn btn-secondary mb-3">⬅ Back to Dashboard</a>
+<a href="/index.html" class="btn btn-secondary mb-3">⬅ Back</a>
+
+<!-- ✅ PROFIT CARD -->
+<div class="card p-3 mb-4">
+    <h5>Total Profit</h5>
+    <h3 id="totalProfit">₹0</h3>
+</div>
 
 <table class="table table-bordered">
 <thead>
@@ -27,6 +38,7 @@ body { background: #f5f6fa; }
     <th>Product</th>
     <th>Type</th>
     <th>Quantity</th>
+    <th>Profit</th> <!-- ✅ NEW -->
 </tr>
 </thead>
 
@@ -53,9 +65,6 @@ async function loadTransactions() {
         });
 
         let data = await res.json();
-
-        console.log("Transactions:", data);
-
         render(data);
 
     } catch (err) {
@@ -68,8 +77,23 @@ function render(transactions) {
     let tbody = document.getElementById("table-body");
     tbody.innerHTML = "";
 
+    let totalProfit = 0;
+
     transactions.forEach(t => {
         let date = new Date(t.createdAt).toLocaleString();
+
+        let profit = 0;
+
+        // ✅ calculate only for sales
+        if (t.type === "Sale" && t.product) {
+            let price = t.product.price || 0;
+            let cost = t.product.costPrice ?? (price * 0.7);
+
+            let p = (price - cost) * t.quantity;
+
+            totalProfit += p;              // ✅ number addition
+            profit = p.toFixed(2);         // ✅ formatted string
+        }
 
         tbody.innerHTML += `
         <tr>
@@ -77,14 +101,20 @@ function render(transactions) {
             <td>${t.product ? t.product.name : "Deleted Product"}</td>
             <td>${t.type}</td>
             <td>${t.quantity}</td>
+            <td style="color:${profit > 0 ? 'green' : 'black'}">
+                ₹${profit}
+            </td>
         </tr>`;
     });
+
+    // ✅ show total with 2 decimals
+    document.getElementById("totalProfit").innerText =
+        "₹" + totalProfit.toFixed(2);
 }
 
 // Start
 loadTransactions();
 
 </script>
-
 </body>
 </html>
