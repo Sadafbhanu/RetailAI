@@ -20,6 +20,10 @@ h2 {
     border-radius: 12px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
+
+.action-btn {
+    margin-right: 6px;
+}
 </style>
 </head>
 
@@ -39,6 +43,7 @@ h2 {
                 <th>Name</th>
                 <th>Qty</th>
                 <th>Min Stock</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody id="lowStockTable"></tbody>
@@ -58,12 +63,27 @@ h2 {
                 <th>Name</th>
                 <th>Expiry Date</th>
                 <th>Loss</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody id="expiredTable"></tbody>
     </table>
 
 </div>
+</div>
+
+<!-- Restock modal (used for low stock + expired) -->
+<div id="restockModal" class="modal-bg" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">
+    <div style="background:white; padding:20px; width:340px; margin:100px auto; border-radius:10px;">
+        <h5 id="restockTitle">Restock Product</h5>
+        <input type="number" id="restockQty" class="form-control mb-2" placeholder="Quantity">
+        <input type="number" id="restockPrice" class="form-control mb-2" placeholder="Price">
+        <input type="date" id="restockExpiry" class="form-control mb-3">
+        <div class="d-flex gap-2">
+            <button class="btn btn-success w-100" onclick="confirmRestockFromAlerts()">Confirm</button>
+            <button class="btn btn-secondary w-100" onclick="closeRestockModal()">Cancel</button>
+        </div>
+    </div>
 </div>
 
 <script src="/js/sidebar.js"></script>
@@ -75,6 +95,8 @@ if (!localStorage.getItem("token")) {
 }
 
 let TOKEN = localStorage.getItem("token");
+let selectedProductId = null;
+let restockMode = "add";
 
 async function loadAlerts() {
 
@@ -95,50 +117,136 @@ async function loadAlerts() {
     const today = new Date();
     today.setHours(0,0,0,0);
 
+    const stockByName = new Map();
+
+    // Aggregate non-expired stock so low-stock is checked by combined quantity.
+    products.forEach(p => {
+        const qty = p.quantity || 0;
+        const min = p.minThreshold || 0;
+        let isExpired = false;
+
+        if (p.expiryDate) {
+            const expDate = new Date(p.expiryDate);
+            expDate.setHours(0, 0, 0, 0);
+            isExpired = expDate < today;
+        }
+
+        if (!isExpired) {
+            if (!stockByName.has(p.name)) {
+                stockByName.set(p.name, {
+                    quantity: 0,
+                    minThreshold: min,
+                    productId: p._id
+                });
+            }
+            const entry = stockByName.get(p.name);
+            entry.quantity += qty;
+            entry.minThreshold = Math.max(entry.minThreshold, min);
+        }
+    });
+
+    stockByName.forEach((entry, name) => {
+        if (entry.quantity < entry.minThreshold) {
+            lowTable.innerHTML += `
+                <tr>
+                    <td>${name}</td>
+                    <td>${entry.quantity}</td>
+                    <td>${entry.minThreshold}</td>
+                    <td>
+                        <button class="btn btn-success btn-sm" onclick="openRestockModal('${entry.productId}', 'add')">Restock</button>
+                    </td>
+                </tr>`;
+        }
+    });
+
     products.forEach(p => {
 
         let qty = p.quantity || 0;
         let min = p.minThreshold || 0;
 
-        // 📉 LOW STOCK
-        if (qty < min) {
-            lowTable.innerHTML += `
-                <tr>
-                    <td>${p.name}</td>
-                    <td>${qty}</td>
-                    <td>${min}</td>
-                </tr>`;
-        }
-
-        // ⛔ EXPIRED
+        let isExpired = false;
         if (p.expiryDate) {
             let expDate = new Date(p.expiryDate);
-            expDate.setHours(0,0,0,0);
+            expDate.setHours(0, 0, 0, 0);
+            isExpired = expDate < today;
+        }
 
-            if (expDate < today) {
+        // ⛔ EXPIRED: restock replaces old quantity or delete product.
+        if (isExpired) {
+            let date = p.expiryDate.split("T")[0];
+            let price = p.price || 0;
+            let cost = p.costPrice ?? (price * 0.7);
+            let loss = cost * qty;
+            totalLoss += loss;
 
-                let date = p.expiryDate.split("T")[0];
-
-                // ✅ LOSS CALCULATION
-                let price = p.price || 0;
-                let cost = p.costPrice ?? (price * 0.7);
-
-                let loss = cost * qty;
-                totalLoss += loss;
-
-                expTable.innerHTML += `
-                    <tr>
-                        <td>${p.name}</td>
-                        <td>${date}</td>
-                        <td style="color:red;">₹${loss.toFixed(2)}</td>
-                    </tr>`;
-            }
+            expTable.innerHTML += `
+                <tr>
+                    <td>${p.name}</td>
+                    <td>${date}</td>
+                    <td style="color:red;">₹${loss.toFixed(2)}</td>
+                    <td>
+                        <button class="btn btn-success btn-sm action-btn" onclick="openRestockModal('${p._id}', 'replace')">Restock</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteProduct('${p._id}')">Delete</button>
+                    </td>
+                </tr>`;
         }
     });
 
     // ✅ UPDATE TOTAL LOSS
     document.getElementById("totalLoss").innerText =
         "₹" + totalLoss.toFixed(2);
+}
+
+function openRestockModal(productId, mode) {
+    selectedProductId = productId;
+    restockMode = mode;
+    document.getElementById("restockTitle").innerText =
+        mode === "replace" ? "Restock Expired Product" : "Restock Low Stock Product";
+    document.getElementById("restockQty").value = "";
+    document.getElementById("restockPrice").value = "";
+    document.getElementById("restockExpiry").value = "";
+    document.getElementById("restockModal").style.display = "block";
+}
+
+function closeRestockModal() {
+    document.getElementById("restockModal").style.display = "none";
+}
+
+async function confirmRestockFromAlerts() {
+    const quantity = parseInt(document.getElementById("restockQty").value, 10);
+    const price = parseFloat(document.getElementById("restockPrice").value);
+    const expiryDate = document.getElementById("restockExpiry").value;
+
+    if (!selectedProductId) return alert("No product selected");
+    if (!quantity || quantity <= 0) return alert("Invalid quantity");
+    if (!price || price <= 0) return alert("Invalid price");
+    if (!expiryDate) return alert("Select expiry date");
+
+    await fetch(`http://localhost:8080/api/products/${selectedProductId}/restock`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + TOKEN
+        },
+        body: JSON.stringify({
+            quantity,
+            price,
+            expiryDate,
+            resetStock: restockMode === "replace"
+        })
+    });
+
+    closeRestockModal();
+    loadAlerts();
+}
+
+async function deleteProduct(productId) {
+    if (!confirm("Delete this product?")) return;
+    await fetch(`http://localhost:8080/api/products/${productId}`, {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + TOKEN }
+    });
+    loadAlerts();
 }
 
 loadSidebar("alerts");

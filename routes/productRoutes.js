@@ -8,6 +8,7 @@ const {
     quickSellProduct,
     quickRestockProduct,
     uploadProducts,
+    updateMinThreshold,
     deleteProduct,
     getTransactions   // ✅ ADD THIS
 } = require('../controllers/productController');
@@ -49,6 +50,9 @@ router.post('/:id/sell', protect, quickSellProduct);
 
 // Restock product
 router.post('/:id/restock', protect, quickRestockProduct);
+
+// Edit product min threshold
+router.put('/:id/min-threshold', protect, updateMinThreshold);
 
 
 /* ==========================================

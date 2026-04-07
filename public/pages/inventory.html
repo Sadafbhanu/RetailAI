@@ -105,7 +105,17 @@ async function loadProducts() {
         headers: { Authorization: "Bearer " + TOKEN }
     });
 
-    products = await res.json();
+    const allProducts = await res.json();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Hide expired products from Inventory Ledger.
+    products = allProducts.filter(p => {
+        if (!p.expiryDate) return true;
+        const expDate = new Date(p.expiryDate);
+        expDate.setHours(0, 0, 0, 0);
+        return expDate >= today;
+    });
     render();
 }
 
@@ -226,6 +236,7 @@ function render() {
             <td>
                 ${sellBtn}
                 <button class="btn btn-success btn-sm" onclick="openRestockModal(${i})">Restock</button>
+                <button class="btn btn-primary btn-sm" onclick="editMinThreshold(${i})">Edit</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteProduct(${i})">Delete</button>
             </td>
         </tr>`;
@@ -241,6 +252,30 @@ async function deleteProduct(index) {
     await fetch(`http://localhost:8080/api/products/${p._id}`, {
         method: "DELETE",
         headers: { Authorization: "Bearer " + TOKEN }
+    });
+
+    loadProducts();
+}
+
+async function editMinThreshold(index) {
+    const p = products[index];
+    const current = p.minThreshold ?? 0;
+    const input = prompt(`Enter new min threshold for ${p.name}:`, current);
+    if (input === null) return;
+
+    const value = parseInt(input, 10);
+    if (Number.isNaN(value) || value < 0) {
+        alert("Please enter a valid non-negative number");
+        return;
+    }
+
+    await fetch(`http://localhost:8080/api/products/${p._id}/min-threshold`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + TOKEN
+        },
+        body: JSON.stringify({ minThreshold: value })
     });
 
     loadProducts();

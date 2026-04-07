@@ -161,7 +161,7 @@ const addProduct = asyncHandler(async (req, res) => {
     5️⃣ Restock Product (AI-ready)
     ========================================== */
     const quickRestockProduct = asyncHandler(async (req, res) => {
-        const { quantity, price, expiryDate } = req.body;
+        const { quantity, price, expiryDate, resetStock } = req.body;
 
         const product = await Product.findOne({
             _id: req.params.id,
@@ -173,7 +173,78 @@ const addProduct = asyncHandler(async (req, res) => {
             throw new Error('Product not found');
         }
 
-        product.quantity += Number(quantity);
+        const currentExpiry = product.expiryDate
+            ? new Date(product.expiryDate).toISOString().split('T')[0]
+            : null;
+        const incomingExpiry = expiryDate
+            ? new Date(expiryDate).toISOString().split('T')[0]
+            : null;
+        const expiryChanged = incomingExpiry && currentExpiry !== incomingExpiry;
+
+        // Keep separate batches for different expiry dates.
+        if (expiryChanged) {
+            const startOfDay = new Date(expiryDate);
+            startOfDay.setHours(0, 0, 0, 0);
+            const endOfDay = new Date(expiryDate);
+            endOfDay.setHours(23, 59, 59, 999);
+
+            const existingBatch = await Product.findOne({
+                name: product.name,
+                ownerID: req.user._id,
+                expiryDate: { $gte: startOfDay, $lte: endOfDay },
+            });
+
+            if (existingBatch) {
+                existingBatch.quantity += Number(quantity);
+                if (price) {
+                    existingBatch.price = Number(price);
+                    existingBatch.costPrice = Number(price) * 0.7;
+                }
+                await existingBatch.save();
+
+                await Transaction.create({
+                    product: existingBatch._id,
+                    ownerID: req.user._id,
+                    type: 'Restock',
+                    quantity: Number(quantity),
+                });
+
+                return res.json({
+                    message: 'Product restocked in existing expiry batch',
+                    updatedStock: existingBatch.quantity,
+                    product: existingBatch,
+                });
+            }
+
+            const newBatch = await Product.create({
+                name: product.name,
+                quantity: Number(quantity),
+                price: price ? Number(price) : product.price,
+                costPrice: price ? Number(price) * 0.7 : (product.costPrice || product.price * 0.7),
+                minThreshold: product.minThreshold,
+                expiryDate: new Date(expiryDate),
+                ownerID: req.user._id,
+            });
+
+            await Transaction.create({
+                product: newBatch._id,
+                ownerID: req.user._id,
+                type: 'Restock',
+                quantity: Number(quantity),
+            });
+
+            return res.json({
+                message: 'Product restocked as a new expiry batch',
+                updatedStock: newBatch.quantity,
+                product: newBatch,
+            });
+        }
+
+        if (resetStock) {
+            product.quantity = Number(quantity);
+        } else {
+            product.quantity += Number(quantity);
+        }
 
         if (price) {
             product.price = Number(price);
@@ -255,7 +326,36 @@ const uploadProducts = asyncHandler(async (req, res) => {
         });
 });
     /* ==========================================
-    7️⃣ Delete Product
+    7️⃣ Update Min Threshold
+    ========================================== */
+    const updateMinThreshold = asyncHandler(async (req, res) => {
+        const { minThreshold } = req.body;
+
+        if (minThreshold === undefined || Number(minThreshold) < 0) {
+            res.status(400);
+            throw new Error('Invalid minThreshold');
+        }
+
+        const product = await Product.findOne({
+            _id: req.params.id,
+            ownerID: req.user._id
+        });
+
+        if (!product) {
+            res.status(404);
+            throw new Error('Product not found');
+        }
+
+        product.minThreshold = Number(minThreshold);
+        await product.save();
+
+        res.json({
+            message: 'Min threshold updated successfully',
+            product
+        });
+    });
+    /* ==========================================
+    8️⃣ Delete Product
     ========================================== */
     const deleteProduct = asyncHandler(async (req, res) => {
         const product = await Product.findOne({
@@ -275,7 +375,7 @@ const uploadProducts = asyncHandler(async (req, res) => {
 
 
     /* ==========================================
-    8️⃣ Get Transactions
+    9️⃣ Get Transactions
     ========================================== */
     const getTransactions = asyncHandler(async (req, res) => {
         const transactions = await Transaction.find({
@@ -298,6 +398,7 @@ const uploadProducts = asyncHandler(async (req, res) => {
         quickSellProduct,
         quickRestockProduct,
         uploadProducts,
+        updateMinThreshold,
         deleteProduct,
         getTransactions
     };
