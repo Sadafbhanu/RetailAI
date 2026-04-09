@@ -49,29 +49,74 @@ small {
 /* Header */
 .topbar {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
-}
-
-/* Profile Dropdown */
-.profile-wrapper {
-    position: relative;
-}
-
-.profile-menu {
-    display: none;
-    position: absolute;
-    right: 0;
-    top: 45px;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 10px;
 }
 
 .clickable-card {
     cursor: pointer;
 }
+
+.monthly-report {
+    margin-top: 28px;
+}
+
+.report-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.report-kpi {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 14px;
+}
+
+.report-kpi .label {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.report-kpi .value {
+    font-size: 20px;
+    font-weight: 700;
+    margin-top: 4px;
+}
+
+@media (max-width: 900px) {
+    .report-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.line-bar-wrap {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.line-bar-legend {
+    display: flex;
+    gap: 14px;
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 8px;
+}
+
+.legend-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    margin-right: 5px;
+}
+
+.legend-bar { background: #93c5fd; }
+.legend-line { background: #1d4ed8; border-radius: 999px; }
 </style>
 </head>
 
@@ -85,18 +130,6 @@ small {
 
     <div class="topbar">
         <h2>Dashboard</h2>
-
-        <div class="profile-wrapper">
-            <button onclick="toggleProfileMenu(event)" class="btn btn-light">
-                👤 Profile
-            </button>
-
-            <div id="profileMenu" class="profile-menu">
-                <button onclick="logout()" class="btn btn-danger w-100">
-                    Logout
-                </button>
-            </div>
-        </div>
     </div>
 
     <!-- Cards -->
@@ -135,6 +168,49 @@ small {
             </thead>
             <tbody id="topSoldTable"></tbody>
         </table>
+    </div>
+
+    <div class="monthly-report">
+        <h4>Monthly Analysis Report</h4>
+        <div class="report-grid">
+            <div class="report-kpi">
+                <div class="label">This Month Sales Qty</div>
+                <div class="value" id="monthSalesQty">0</div>
+            </div>
+            <div class="report-kpi">
+                <div class="label">This Month Revenue</div>
+                <div class="value" id="monthRevenue">₹0</div>
+            </div>
+            <div class="report-kpi">
+                <div class="label">This Month Profit</div>
+                <div class="value" id="monthProfit">₹0</div>
+            </div>
+            <div class="report-kpi">
+                <div class="label">This Month Restocked Qty</div>
+                <div class="value" id="monthRestockQty">0</div>
+            </div>
+        </div>
+
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Month</th>
+                    <th>Sales Qty</th>
+                    <th>Revenue (₹)</th>
+                    <th>Profit (₹)</th>
+                    <th>Restock Qty</th>
+                </tr>
+            </thead>
+            <tbody id="monthlyReportTable"></tbody>
+        </table>
+
+        <div class="line-bar-wrap">
+            <div class="line-bar-legend">
+                <span><i class="legend-dot legend-bar"></i>Revenue (bar)</span>
+                <span><i class="legend-dot legend-line"></i>Profit (line)</span>
+            </div>
+            <svg id="monthlyLineBarChart" width="100%" height="260" role="img" aria-label="Monthly revenue and profit chart"></svg>
+        </div>
     </div>
 
 </div>
@@ -231,31 +307,140 @@ async function loadDashboard() {
 
         document.getElementById("totalValue").innerText = totalValue;
         document.getElementById("products").innerText = data.length;
+        renderMonthlyReport(transactions);
 
     } catch (err) {
         console.log(err);
     }
 }
 
-// Toggle dropdown
-function toggleProfileMenu(e) {
-    e.stopPropagation();
-    let menu = document.getElementById("profileMenu");
-    menu.style.display = menu.style.display === "block" ? "none" : "block";
+function getMonthKey(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
 }
 
-// Logout
-function logout() {
-    localStorage.removeItem("token");
-    window.location.href = "/pages/login.html";
+function monthLabelFromKey(key) {
+    const [y, m] = key.split("-").map(Number);
+    return new Date(y, m - 1, 1).toLocaleString("en-US", {
+        month: "short",
+        year: "numeric"
+    });
 }
 
-// Close dropdown
-document.addEventListener("click", function(e) {
-    if (!e.target.closest(".profile-wrapper")) {
-        document.getElementById("profileMenu").style.display = "none";
+function renderMonthlyReport(transactions) {
+    const now = new Date();
+    const monthKeys = [];
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        monthKeys.push(getMonthKey(d));
     }
-});
+
+    const monthly = {};
+    monthKeys.forEach((k) => {
+        monthly[k] = { salesQty: 0, revenue: 0, profit: 0, restockQty: 0 };
+    });
+
+    transactions.forEach((t) => {
+        if (!t.createdAt) return;
+        const dt = new Date(t.createdAt);
+        const key = getMonthKey(dt);
+        if (!monthly[key]) return;
+
+        const qty = Number(t.quantity || 0);
+        const price = Number(t.product?.price || 0);
+        const cost = Number(t.product?.costPrice ?? (price * 0.7));
+
+        if (t.type === "Sale") {
+            monthly[key].salesQty += qty;
+            monthly[key].revenue += qty * price;
+            monthly[key].profit += qty * (price - cost);
+        } else if (t.type === "Restock") {
+            monthly[key].restockQty += qty;
+        }
+    });
+
+    const currentKey = getMonthKey(now);
+    const current = monthly[currentKey] || { salesQty: 0, revenue: 0, profit: 0, restockQty: 0 };
+    document.getElementById("monthSalesQty").innerText = current.salesQty;
+    document.getElementById("monthRevenue").innerText = `₹${current.revenue.toFixed(0)}`;
+    document.getElementById("monthProfit").innerText = `₹${current.profit.toFixed(0)}`;
+    document.getElementById("monthRestockQty").innerText = current.restockQty;
+
+    const tbody = document.getElementById("monthlyReportTable");
+    tbody.innerHTML = "";
+    monthKeys.slice().reverse().forEach((k) => {
+        const row = monthly[k];
+        tbody.innerHTML += `
+            <tr>
+                <td>${monthLabelFromKey(k)}</td>
+                <td>${row.salesQty}</td>
+                <td>₹${row.revenue.toFixed(2)}</td>
+                <td>₹${row.profit.toFixed(2)}</td>
+                <td>${row.restockQty}</td>
+            </tr>
+        `;
+    });
+
+    renderLineBarChart(monthKeys, monthly);
+}
+
+function renderLineBarChart(monthKeys, monthly) {
+    const svg = document.getElementById("monthlyLineBarChart");
+    if (!svg) return;
+
+    const keys = monthKeys.slice().reverse();
+    const width = 860;
+    const height = 250;
+    const padL = 44;
+    const padR = 14;
+    const padT = 16;
+    const padB = 38;
+    const chartW = width - padL - padR;
+    const chartH = height - padT - padB;
+
+    const revenueVals = keys.map((k) => monthly[k].revenue || 0);
+    const profitVals = keys.map((k) => monthly[k].profit || 0);
+    const maxVal = Math.max(1, ...revenueVals, ...profitVals);
+
+    const stepX = chartW / keys.length;
+    const barW = Math.max(18, stepX * 0.45);
+
+    const bars = [];
+    const linePts = [];
+    const labels = [];
+
+    keys.forEach((k, i) => {
+        const cx = padL + stepX * i + stepX / 2;
+        const rev = monthly[k].revenue || 0;
+        const prof = monthly[k].profit || 0;
+        const revH = (rev / maxVal) * chartH;
+        const py = padT + chartH - (prof / maxVal) * chartH;
+
+        bars.push(
+            `<rect x="${(cx - barW / 2).toFixed(1)}" y="${(padT + chartH - revH).toFixed(1)}" width="${barW.toFixed(1)}" height="${revH.toFixed(1)}" fill="#93c5fd" rx="4" />`
+        );
+        linePts.push(`${cx.toFixed(1)},${py.toFixed(1)}`);
+
+        labels.push(
+            `<text x="${cx.toFixed(1)}" y="${height - 12}" text-anchor="middle" font-size="11" fill="#64748b">${monthLabelFromKey(k).split(" ")[0]}</text>`
+        );
+    });
+
+    const yGuides = [0.25, 0.5, 0.75, 1].map((r) => {
+        const y = padT + chartH - chartH * r;
+        return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${width - padR}" y2="${y.toFixed(1)}" stroke="#e2e8f0" stroke-width="1" />`;
+    }).join("");
+
+    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    svg.innerHTML = `
+        ${yGuides}
+        <line x1="${padL}" y1="${padT + chartH}" x2="${width - padR}" y2="${padT + chartH}" stroke="#cbd5e1" stroke-width="1" />
+        ${bars.join("")}
+        <polyline points="${linePts.join(" ")}" fill="none" stroke="#1d4ed8" stroke-width="2.5" />
+        ${labels.join("")}
+    `;
+}
 
 // Start
 loadSidebar("dashboard");

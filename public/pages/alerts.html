@@ -76,6 +76,7 @@ h2 {
     <p class="table-note mb-2">
         Estimated discount price uses a demand + shelf-life model (replaceable with a trained ML model).
         Sales counted over the last 30 days.
+        After you change a price here, that product stays out of this list for 7 days so results can be observed.
     </p>
     <table class="table table-bordered">
         <thead>
@@ -227,12 +228,17 @@ async function loadAlerts() {
             isExpired = expDate < today;
         }
 
-        // ⛔ EXPIRED: restock replaces old quantity or delete product.
+        // ⛔ EXPIRED: if same product exists in active inventory, show delete only.
         if (isExpired) {
             let date = p.expiryDate.split("T")[0];
             let price = p.price || 0;
             let cost = p.costPrice ?? (price * 0.7);
             let loss = cost * qty;
+            const hasActiveInventory = stockByName.has(p.name) && (stockByName.get(p.name).quantity || 0) > 0;
+            const expiredActions = hasActiveInventory
+                ? `<button class="btn btn-danger btn-sm" onclick="deleteProduct('${p._id}')">Delete</button>`
+                : `<button class="btn btn-success btn-sm action-btn" onclick="openRestockModal('${p._id}', 'replace')">Restock</button>
+                   <button class="btn btn-danger btn-sm" onclick="deleteProduct('${p._id}')">Delete</button>`;
             totalLoss += loss;
 
             expTable.innerHTML += `
@@ -241,8 +247,7 @@ async function loadAlerts() {
                     <td>${date}</td>
                     <td style="color:red;">₹${loss.toFixed(2)}</td>
                     <td>
-                        <button class="btn btn-success btn-sm action-btn" onclick="openRestockModal('${p._id}', 'replace')">Restock</button>
-                        <button class="btn btn-danger btn-sm" onclick="deleteProduct('${p._id}')">Delete</button>
+                        ${expiredActions}
                     </td>
                 </tr>`;
         }

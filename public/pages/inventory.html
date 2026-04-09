@@ -47,6 +47,10 @@ body { background: #f5f6fa; font-family: Arial; }
 .status-msg {
     font-size: 0.9rem;
 }
+
+.low-stock-row td {
+    background-color: #ffe5e5;
+}
 </style>
 </head>
 
@@ -111,7 +115,7 @@ body { background: #f5f6fa; font-family: Arial; }
 <tr>
 <th>Name</th>
 <th>Qty</th>
-<th>Min Threshold</th>
+<th>Min Stock</th>
 <th>Price</th>
 <th>Total</th>
 <th>Expiry</th>
@@ -176,8 +180,10 @@ async function loadProducts() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Hide expired products from Inventory Ledger.
+    // Hide expired and zero-quantity products from Inventory Ledger.
+    // They remain in DB and are still visible in alerts (e.g., low stock).
     products = allProducts.filter(p => {
+        if (!p.quantity || p.quantity <= 0) return false;
         if (!p.expiryDate) return true;
         const expDate = new Date(p.expiryDate);
         expDate.setHours(0, 0, 0, 0);
@@ -271,6 +277,7 @@ function render() {
     products.forEach((p, i) => {
         let total = p.quantity * p.price;
         let expiry = p.expiryDate ? p.expiryDate.split("T")[0] : "-";
+        const isLowStock = (p.quantity || 0) < (p.minThreshold || 0);
 
         let isExpired = false;
         let dotClass = "";
@@ -291,9 +298,11 @@ function render() {
 
         let sellBtn = isExpired ? "" :
             `<button class="btn btn-warning btn-sm" onclick="openSellModal(${i})">Sell</button>`;
+        let restockBtn = isExpired ? "" :
+            `<button class="btn btn-success btn-sm" onclick="openRestockModal(${i})">Restock</button>`;
 
         tbody.innerHTML += `
-        <tr>
+        <tr class="${isLowStock ? "low-stock-row" : ""}">
             <td>${p.name}</td>
             <td>${p.quantity}</td>
             <td>${p.minThreshold ?? 0}</td>
@@ -302,7 +311,7 @@ function render() {
             <td>${expiry} ${dotClass ? `<span class="expiry-dot ${dotClass}"></span>` : ""}</td>
             <td>
                 ${sellBtn}
-                <button class="btn btn-success btn-sm" onclick="openRestockModal(${i})">Restock</button>
+                ${restockBtn}
                 <button class="btn btn-primary btn-sm" onclick="editMinThreshold(${i})">Edit</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteProduct(${i})">Delete</button>
             </td>
@@ -351,17 +360,20 @@ async function editMinThreshold(index) {
 async function handleAddItemForm(e) {
     e.preventDefault();
 
+    const categoryEl = document.getElementById("addCategory");
+    const costPriceEl = document.getElementById("addCostPrice");
+
     const payload = {
         name: document.getElementById("addName").value.trim(),
         quantity: Number(document.getElementById("addQty").value),
         price: Number(document.getElementById("addPrice").value),
         minThreshold: Number(document.getElementById("addMinThreshold").value || 5),
         expiryDate: document.getElementById("addExpiryDate").value,
-        category: document.getElementById("addCategory").value.trim() || "General",
+        category: (categoryEl?.value || "").trim() || "General",
     };
 
-    const costPriceVal = document.getElementById("addCostPrice").value;
-    if (costPriceVal !== "") payload.costPrice = Number(costPriceVal);
+    const costPriceVal = costPriceEl?.value;
+    if (costPriceVal !== undefined && costPriceVal !== "") payload.costPrice = Number(costPriceVal);
 
     if (!payload.name || !payload.quantity || !payload.price || !payload.expiryDate) {
         return alert("Please fill required fields.");

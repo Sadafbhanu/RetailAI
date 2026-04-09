@@ -400,6 +400,8 @@ const uploadProducts = asyncHandler(async (req, res) => {
     });
 
     const LEAST_SOLD_WINDOW_DAYS = 30;
+    /** Days to wait after a price change before the product can appear in least-sold again */
+    const LEAST_SOLD_PRICE_OBSERVATION_DAYS = 7;
 
     const getLeastSoldProducts = asyncHandler(async (req, res) => {
         const from = new Date();
@@ -431,6 +433,11 @@ const uploadProducts = asyncHandler(async (req, res) => {
 
         const eligible = products.filter((p) => {
             if (!p.quantity || p.quantity <= 0) return false;
+            if (p.lastPriceChangeAt) {
+                const obsEnd = new Date(p.lastPriceChangeAt);
+                obsEnd.setDate(obsEnd.getDate() + LEAST_SOLD_PRICE_OBSERVATION_DAYS);
+                if (new Date() < obsEnd) return false;
+            }
             if (!p.expiryDate) return true;
             const exp = new Date(p.expiryDate);
             exp.setHours(0, 0, 0, 0);
@@ -496,6 +503,7 @@ const uploadProducts = asyncHandler(async (req, res) => {
 
         product.price = n;
         product.costPrice = n * 0.7;
+        product.lastPriceChangeAt = new Date();
         await product.save();
 
         res.json({

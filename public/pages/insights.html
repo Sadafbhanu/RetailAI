@@ -14,6 +14,10 @@ body { background: #f5f6fa; font-family: Arial; }
 .card {
     margin-bottom: 15px;
 }
+
+.section-title {
+    margin: 22px 0 10px;
+}
 </style>
 </head>
 
@@ -23,7 +27,7 @@ body { background: #f5f6fa; font-family: Arial; }
     <div id="sidebar-placeholder"></div>
     <div class="main-content">
 
-    <h2 class="mb-3">AI Insights</h2>
+    <h2 class="mb-3">Advanced Retail AI Insights</h2>
 
     <div id="insightsContainer"></div>
 
@@ -39,6 +43,11 @@ if (!localStorage.getItem("token")) {
 }
 
 const TOKEN = localStorage.getItem("token");
+const INSIGHT_SECTIONS = [
+    "Demand Forecast",
+    "Trend Analysis",
+    "Smart Offer Suggestions",
+];
 
 async function loadInsights() {
     try {
@@ -55,28 +64,35 @@ async function loadInsights() {
         const container = document.getElementById("insightsContainer");
         container.innerHTML = "";
 
-        if (!data || data.length === 0) {
+        if (!Array.isArray(data) || data.length === 0) {
             container.innerHTML = "<p>No insights available.</p>";
             return;
         }
 
-        data.forEach(i => {
+        INSIGHT_SECTIONS.forEach(section => {
+            const sectionInsights = data.filter(i => (i.section || "Demand Forecast") === section);
+            if (!sectionInsights.length) return;
 
-            let color = "secondary";
+            container.innerHTML += `<h4 class="section-title">${section}</h4>`;
 
-            if (i.priority === "High") color = "danger";
-            else if (i.priority === "Medium") color = "warning";
-            else if (i.priority === "Low") color = "success";
+            sectionInsights.forEach(i => {
 
-            container.innerHTML += `
-                <div class="card border-${color}">
-                    <div class="card-body">
-                        <h6><b>${i.type}</b></h6>
-                        <p>${i.message}</p>
-                        <span class="badge bg-${color}">${i.priority}</span>
+                let color = "secondary";
+
+                if (i.priority === "High") color = "danger";
+                else if (i.priority === "Medium") color = "warning";
+                else if (i.priority === "Low") color = "success";
+
+                container.innerHTML += `
+                    <div class="card border-${color}">
+                        <div class="card-body">
+                            <h6><b>${i.title || i.type || "Insight"}</b></h6>
+                            <p>${i.message || ""}</p>
+                            <span class="badge bg-${color}">${i.priority || "Low"}</span>
+                        </div>
                     </div>
-                </div>
-            `;
+                `;
+            });
         });
 
     } catch (err) {

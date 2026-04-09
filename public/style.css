@@ -225,6 +225,8 @@
     color: #fff;
     padding: 20px 16px;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
     z-index: 1000;
 }
 
@@ -251,6 +253,47 @@
 .sidebar-nav a.active {
     background: #4e73df;
     color: #fff;
+}
+
+.sidebar-nav {
+    flex: 1;
+}
+
+.sidebar-footer {
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.sidebar-username {
+    color: #cbd5e1;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(148, 163, 184, 0.12);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sidebar-logout-btn {
+    width: 100%;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: transparent;
+    color: #cbd5e1;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.sidebar-logout-btn:hover {
+    background: rgba(51, 65, 85, 0.8);
+    color: #f8fafc;
+    border-color: rgba(148, 163, 184, 0.5);
 }
 
 .main-content {

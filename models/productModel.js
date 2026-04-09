@@ -9,6 +9,8 @@ const productSchema = new mongoose.Schema({
     expiryDate: Date,
     price: Number,
     costPrice: Number,
+    /** Set when sale price is changed (e.g. clearance); used to hide from least-sold during observation */
+    lastPriceChangeAt: { type: Date },
     minThreshold: { type: Number, default: 5 }, 
     category: {
         type: String,
