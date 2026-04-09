@@ -1,5 +1,6 @@
 const Transaction = require('../models/transactionModel');
 const Product = require('../models/productModel');
+const { predictDemandDirection, predictDiscountPrice } = require('../utils/mlRecommender');
 
 const getInsights = async (req, res) => {
     try {
@@ -50,7 +51,7 @@ const getInsights = async (req, res) => {
 
         const insights = [];
 
-        // 1) Demand Forecast
+        // 1) Demand Forecast (ML-based direction + confidence)
         for (const p of products) {
             const id = p._id.toString();
             const cur = currentSales.get(id) || 0;
@@ -58,31 +59,25 @@ const getInsights = async (req, res) => {
             const total = totalSales.get(id) || 0;
             if (cur === 0 && prev === 0) continue;
 
-            const delta = cur - prev;
-            let forecast = 'stable';
-            let reason = 'past sales are steady';
-            let priority = 'Low';
-
-            if (prev > 0 && delta / prev >= 0.25) {
-                forecast = 'increase';
-                reason = `trend: last ${demandWindowDays} days sales (${cur}) are higher than previous ${demandWindowDays} days (${prev})`;
-                priority = 'High';
-            } else if (prev > 0 && delta / prev <= -0.25) {
-                forecast = 'decrease';
-                reason = `trend: last ${demandWindowDays} days sales (${cur}) dropped from previous ${demandWindowDays} days (${prev})`;
-                priority = 'Medium';
-            } else {
-                const weekend = weekendSales.get(id) || 0;
-                if (total > 0 && weekend / total >= 0.5) {
-                    reason = 'seasonality: most sales happen on weekends';
-                }
-            }
+            const weekendRatio = total > 0 ? (weekendSales.get(id) || 0) / total : 0;
+            const demand = predictDemandDirection({
+                currentSales: cur,
+                previousSales: prev,
+                weekendRatio,
+                stockRatio: (Number(p.quantity) || 0) / Math.max(1, Number(p.minThreshold) || 5),
+            });
+            const forecast = demand.direction;
+            const priority = demand.confidence >= 0.8
+                ? 'High'
+                : demand.confidence >= 0.6
+                    ? 'Medium'
+                    : 'Low';
 
             insights.push({
                 section: 'Demand Forecast',
                 type: 'Demand Forecast',
                 title: `${p.name}: demand may ${forecast}`,
-                message: `Reason: ${reason}.`,
+                message: `Reason: ${demand.reason}. Confidence: ${(demand.confidence * 100).toFixed(0)}%.`,
                 priority,
             });
         }
@@ -151,7 +146,7 @@ const getInsights = async (req, res) => {
             }
         }
 
-        // 3) Smart Offer Suggestions
+        // 3) Smart Offer Suggestions (ML-guided pricing + recommendations)
         const bySlowSales = products
             .map((p) => {
                 const id = p._id.toString();
@@ -164,11 +159,21 @@ const getInsights = async (req, res) => {
 
         bySlowSales.slice(0, 3).forEach(({ p, sold }) => {
             if ((p.quantity || 0) <= (p.minThreshold || 0)) return;
+            const ml = predictDiscountPrice({
+                price: p.price,
+                costPrice: p.costPrice,
+                quantity: p.quantity,
+                minThreshold: p.minThreshold,
+                expiryDate: p.expiryDate,
+                soldQtyInWindow: sold,
+                windowDays: demandWindowDays,
+            });
+
             insights.push({
                 section: 'Smart Offer Suggestions',
                 type: 'Offer',
                 title: `${p.name}: discount recommendation`,
-                message: `Slow-moving stock (sold ${sold} in last ${demandWindowDays} days). Suggest 10-15% discount.`,
+                message: `Slow-moving stock (sold ${sold} in last ${demandWindowDays} days). Suggested price: ₹${ml.suggestedPrice.toFixed(2)} (${(ml.discountPct * 100).toFixed(0)}% discount, confidence ${(ml.confidence * 100).toFixed(0)}%).`,
                 priority: 'Medium',
             });
         });
